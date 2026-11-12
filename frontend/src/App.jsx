@@ -1,57 +1,117 @@
+
 import { useEffect, useState } from "react";
 import axios from "axios";
+import CodeEditor from "./components/CodeEditor";
+import LanguageSelector from "./components/LanguageSelector";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const API = "http://localhost:5000";
+
+const templates = {
+  c: `#include <stdio.h>
+
+int main() {
+    printf("Hello, CodeNest!\\n");
+    return 0;
+}`,
+  cpp: `#include <iostream>
+using namespace std;
+
+int main() {
+    cout << "Hello, CodeNest!" << endl;
+    return 0;
+}`,
+  java: `public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, CodeNest!");
+    }
+}`,
+};
 
 export default function App() {
-  const [backendStatus, setBackendStatus] = useState("Checking connection...");
+  const [language, setLanguage] = useState("cpp");
+  const [code, setCode] = useState(templates.cpp);
+  const [backendStatus, setBackendStatus] = useState("Connecting...");
 
   useEffect(() => {
-    axios
-      .get(`${API_BASE_URL}/api/health`)
-      .then((response) => {
-        setBackendStatus(response.data.status || "Connected");
-      })
-      .catch(() => {
-        setBackendStatus("Backend connection failed");
-      });
+    axios.get(`${API}/api/health`)
+      .then(() => setBackendStatus("Connected"))
+      .catch(() => setBackendStatus("Disconnected"));
   }, []);
 
+  const changeLanguage = (newLanguage) => {
+    setLanguage(newLanguage);
+    setCode(templates[newLanguage]);
+  };
+
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="CodeNext home">
-          <span className="brand-mark">&lt;/&gt;</span>
-          <span>Code<span className="brand-accent">Nest</span></span>
-        </a>
-        <span className="topbar-label">MULTI-LANGUAGE COMPILER</span>
+    <div className="ide">
+      <header className="ide-header">
+        <div className="brand">
+          <span className="brand-icon">&lt;/&gt;</span>
+          <span>Code<span className="accent">Nest</span></span>
+        </div>
+
+        <div className="header-right">
+          <span className="connection">
+            <span className={`dot ${backendStatus === "Connected" ? "online" : ""}`} />
+            {backendStatus}
+          </span>
+        </div>
       </header>
 
-      <section className="welcome">
-        <p className="eyebrow">YOUR CODING WORKSPACE</p>
-        <h1>Build, compile, and <span>run.</span></h1>
-        <p className="intro">
-          A workspace for C, C++, and Java. The editor and compiler workflow
-          will be added step by step.
-        </p>
+      <main className="workspace">
+        <section className="editor-panel">
+          <div className="toolbar">
+            <div className="file-name">
+              <span className="file-icon">●</span>
+              <span>Main.{language === "cpp" ? "cpp" : language}</span>
+            </div>
 
-        <div className="status-card">
-          <span className="status-dot" />
-          <div>
-            <strong>Backend status</strong>
-            <p>{backendStatus}</p>
+            <div className="toolbar-actions">
+              <LanguageSelector
+                language={language}
+                setLanguage={changeLanguage}
+              />
+
+              <button className="run-button" disabled title="Compilation will be added in Part 3">
+                ▶ Run
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div className="language-list" aria-label="Planned languages">
-          <span>C</span>
-          <span>C++</span>
-          <span>Java</span>
-        </div>
-      </section>
+          <div className="editor-area">
+            <CodeEditor
+              language={language}
+              code={code}
+              setCode={setCode}
+            />
+          </div>
 
-      <footer>CodeNest · Project setup</footer>
-    </main>
+          <div className="bottom-panel">
+            <div className="panel-heading">
+              <span>INPUT</span>
+              <span className="panel-muted">Program input</span>
+            </div>
+            <textarea
+              className="input-area"
+              placeholder="Enter your program input here..."
+            />
+            <div className="panel-heading output-heading">
+              <span>OUTPUT</span>
+              <span className="panel-muted">Execution result will appear here</span>
+            </div>
+            <div className="output-area">
+              <span className="output-placeholder">
+                Your output will appear here after compilation.
+              </span>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="ide-footer">
+        CodeNest <span>•</span> Multi-Language Compiler
+      </footer>
+    </div>
   );
 }
