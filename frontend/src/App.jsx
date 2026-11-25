@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import axios from "axios";
 import CodeEditor from "./components/CodeEditor";
@@ -68,14 +67,11 @@ export default function App() {
     setOutput("Compiling and executing your code...");
 
     try {
-      const response = await axios.post(
-        `${API}/api/compiler/run`,
-        {
-          language,
-          code,
-          input,
-        }
-      );
+      const response = await axios.post(`${API}/api/compiler/run`, {
+        language,
+        code,
+        input,
+      });
 
       const result = response.data;
 
@@ -86,9 +82,9 @@ export default function App() {
       } else {
         setOutput(
           result.output ||
-          result.error ||
-          result.message ||
-          "Compilation or execution failed."
+            result.error ||
+            result.message ||
+            "Compilation or execution failed."
         );
       }
     } catch (error) {
@@ -96,8 +92,8 @@ export default function App() {
 
       setOutput(
         error.response?.data?.message ||
-        error.message ||
-        "Unable to execute code."
+          error.message ||
+          "Unable to execute code."
       );
     } finally {
       setIsRunning(false);
@@ -128,65 +124,63 @@ export default function App() {
 
       <main className="workspace">
         <section className="editor-panel">
-          <div className="toolbar">
-            <div className="file-name">
-              <span className="file-icon">●</span>
-              <span>
-                Main.{language === "cpp" ? "cpp" : language}
-              </span>
-            </div>
+          {/* LEFT: code */}
+          <div className="code-pane">
+            <div className="toolbar">
+              <div className="file-name">
+                <span className="file-icon">●</span>
+                <span>Main.{language === "cpp" ? "cpp" : language}</span>
+              </div>
 
-            <div className="toolbar-actions">
               <LanguageSelector
                 language={language}
                 setLanguage={changeLanguage}
               />
+            </div>
 
+            <div className="editor-area">
+              <CodeEditor
+                language={language}
+                code={code}
+                setCode={setCode}
+              />
+            </div>
+          </div>
+
+          {/* RIGHT: run + input + output */}
+          <div className="io-pane">
+            <div className="io-top">
               <button
                 type="button"
                 className="run-button"
                 onClick={handleRun}
-                disabled={
-                  isRunning || backendStatus !== "Connected"
-                }
+                disabled={isRunning || backendStatus !== "Connected"}
               >
                 {isRunning ? "Running..." : "▶ Run"}
               </button>
             </div>
-          </div>
 
-          <div className="editor-area">
-            <CodeEditor
-              language={language}
-              code={code}
-              setCode={setCode}
-            />
-          </div>
-
-          <div className="bottom-panel">
-            <div className="panel-heading">
-              <span>INPUT</span>
-              <span className="panel-muted">Program input</span>
+            <div className="io-block input-block">
+              <div className="panel-heading">
+                <span>INPUT</span>
+                <span className="panel-muted">Program input</span>
+              </div>
+              <textarea
+                className="input-area"
+                placeholder="Enter your program input here..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+              />
             </div>
 
-            <textarea
-              className="input-area"
-              placeholder="Enter your program input here..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-            />
-
-            <div className="panel-heading output-heading">
-              <span>OUTPUT</span>
-              <span className="panel-muted">
-                Program execution result
-              </span>
-            </div>
-
-            <div className="output-area">
-              <pre className="output-placeholder">
-                {output}
-              </pre>
+            <div className="io-block output-block">
+              <div className="panel-heading">
+                <span>OUTPUT</span>
+                <span className="panel-muted">Program execution result</span>
+              </div>
+              <div className="output-area">
+                <pre className="output-placeholder">{output}</pre>
+              </div>
             </div>
           </div>
         </section>
