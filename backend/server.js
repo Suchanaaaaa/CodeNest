@@ -1,8 +1,14 @@
+
+console.log("SERVER FILE STARTED");
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import compilerRoutes from "./routes/compilerRoutes.js";
 
 dotenv.config();
+
+console.log("DOTENV LOADED");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,6 +32,10 @@ app.get("/api/health", (req, res) => {
     project: "CodeNest",
   });
 });
+
+app.use("/api/compiler", compilerRoutes);
+
+console.log("ABOUT TO START SERVER");
 
 app.listen(PORT, () => {
   console.log(`CodeNest Backend running on port ${PORT}`);
