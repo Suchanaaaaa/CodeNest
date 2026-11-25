@@ -26,6 +26,7 @@ const LANGUAGE_CONFIG = {
   },
 };
 
+// Run Docker process
 function runProcess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -65,6 +66,7 @@ function runProcess(command, args, options = {}) {
 
     child.on("error", (error) => {
       clearTimeout(timer);
+
       if (!settled) {
         settled = true;
         reject(error);
@@ -82,7 +84,12 @@ function runProcess(command, args, options = {}) {
   });
 }
 
-export async function executeCode({ language, code, input = "" }) {
+// Execute user code
+export async function executeCode({
+  language,
+  code,
+  input = "",
+}) {
   const config = LANGUAGE_CONFIG[language];
 
   if (!config) {
@@ -97,7 +104,10 @@ export async function executeCode({ language, code, input = "" }) {
     throw new Error("Source code is too large.");
   }
 
-  if (typeof input !== "string" || Buffer.byteLength(input, "utf8") > 10000) {
+  if (
+    typeof input !== "string" ||
+    Buffer.byteLength(input, "utf8") > 10000
+  ) {
     throw new Error("Program input is too large.");
   }
 
@@ -106,17 +116,21 @@ export async function executeCode({ language, code, input = "" }) {
     `codenest-${crypto.randomUUID()}`
   );
 
-  const workspaceName = path.basename(workspace);
-
   try {
+    // Create temporary workspace
     await fs.mkdir(workspace, { mode: 0o700 });
 
+    // Write source code
     await fs.writeFile(
       path.join(workspace, config.filename),
       code,
-      { encoding: "utf8", mode: 0o600 }
+      {
+        encoding: "utf8",
+        mode: 0o600,
+      }
     );
 
+    // Docker security and resource limits
     const dockerLimits = [
       "run",
       "--rm",
@@ -136,23 +150,35 @@ export async function executeCode({ language, code, input = "" }) {
       IMAGE_NAME,
     ];
 
+    // Step 1: Compile source code
     const compile = await runProcess(
       "docker",
-      [...dockerLimits, ...config.compile],
-      { timeout: TIMEOUT }
+      [...dockerLimits, ...config.compile]
     );
 
     if (compile.code !== 0) {
       return {
         success: false,
-        output: compile.stderr || compile.stdout || "Compilation failed.",
+        output:
+          compile.stderr ||
+          compile.stdout ||
+          "Compilation failed.",
       };
     }
+
+    // Step 2: Execute compiled program
+    // -i keeps Docker stdin open for user input
+    const executionArgs = [
+      ...dockerLimits.slice(0, 1),
+      "-i",
+      ...dockerLimits.slice(1),
+      ...config.execute,
+    ];
 
     const execution = await new Promise((resolve, reject) => {
       const child = spawn(
         "docker",
-        [...dockerLimits, ...config.execute],
+        executionArgs,
         {
           stdio: ["pipe", "pipe", "pipe"],
           windowsHide: true,
@@ -168,7 +194,9 @@ export async function executeCode({ language, code, input = "" }) {
 
         if (!settled) {
           settled = true;
-          reject(new Error("Execution time limit exceeded."));
+          reject(
+            new Error("Execution time limit exceeded.")
+          );
         }
       }, TIMEOUT);
 
@@ -182,6 +210,7 @@ export async function executeCode({ language, code, input = "" }) {
 
       child.on("error", (error) => {
         clearTimeout(timer);
+
         if (!settled) {
           settled = true;
           reject(error);
@@ -193,10 +222,15 @@ export async function executeCode({ language, code, input = "" }) {
 
         if (!settled) {
           settled = true;
-          resolve({ exitCode, stdout, stderr });
+          resolve({
+            exitCode,
+            stdout,
+            stderr,
+          });
         }
       });
 
+      // Send user input to Docker container
       child.stdin.end(input);
     });
 
@@ -205,7 +239,9 @@ export async function executeCode({ language, code, input = "" }) {
       output: execution.stdout,
       error: execution.stderr,
     };
+
   } finally {
+    // Remove temporary workspace
     await fs.rm(workspace, {
       recursive: true,
       force: true,

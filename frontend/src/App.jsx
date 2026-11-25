@@ -39,16 +39,13 @@ export default function App() {
 
   // Backend health check
   useEffect(() => {
-    console.log("Checking CodeNest Backend...");
-
     axios
       .get(`${API}/api/health`)
-      .then((response) => {
-        console.log("BACKEND CONNECTED:", response.data);
+      .then(() => {
         setBackendStatus("Connected");
       })
       .catch((error) => {
-        console.error("BACKEND CONNECTION ERROR:", error);
+        console.error("Backend connection error:", error);
         setBackendStatus("Disconnected");
       });
   }, []);
@@ -57,37 +54,50 @@ export default function App() {
   const changeLanguage = (newLanguage) => {
     setLanguage(newLanguage);
     setCode(templates[newLanguage]);
-    setOutput("Language changed. Ready to test backend connection.");
+    setOutput("Language changed. Ready to compile.");
   };
 
-  // Run button click and API test
+  // Actual code execution
   const handleRun = async () => {
-    console.log("RUN BUTTON CLICKED!");
+    if (!code.trim()) {
+      setOutput("Please write some code first.");
+      return;
+    }
 
     setIsRunning(true);
-    setOutput("Run button clicked! Connecting to CodeNest Backend...");
+    setOutput("Compiling and executing your code...");
 
     try {
-      const response = await axios.get(
-        `${API}/api/compiler/test`
+      const response = await axios.post(
+        `${API}/api/compiler/run`,
+        {
+          language,
+          code,
+          input,
+        }
       );
 
-      console.log("API RESPONSE:", response.data);
+      const result = response.data;
 
-      setOutput(
-        `${response.data.message}
-
-Backend connection successful!
-
-Actual code compilation will be added in the next step.`
-      );
+      if (result.success) {
+        setOutput(
+          result.output || "Program executed successfully. No output."
+        );
+      } else {
+        setOutput(
+          result.output ||
+          result.error ||
+          result.message ||
+          "Compilation or execution failed."
+        );
+      }
     } catch (error) {
-      console.error("API ERROR:", error);
+      console.error("Code execution error:", error);
 
       setOutput(
         error.response?.data?.message ||
         error.message ||
-        "Unable to connect to Compiler API."
+        "Unable to execute code."
       );
     } finally {
       setIsRunning(false);
@@ -140,7 +150,7 @@ Actual code compilation will be added in the next step.`
                   isRunning || backendStatus !== "Connected"
                 }
               >
-                {isRunning ? "Connecting..." : "▶ Run"}
+                {isRunning ? "Running..." : "▶ Run"}
               </button>
             </div>
           </div>
@@ -169,7 +179,7 @@ Actual code compilation will be added in the next step.`
             <div className="panel-heading output-heading">
               <span>OUTPUT</span>
               <span className="panel-muted">
-                Backend API response
+                Program execution result
               </span>
             </div>
 
