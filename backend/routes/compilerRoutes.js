@@ -1,6 +1,20 @@
 
 import express from "express";
+import { rateLimit } from "express-rate-limit";
 import { executeCode } from "../services/compilerService.js";
+// Rate Limiting Configuration
+const compilerLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 20, // Maximum 20 requests
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+
+  message: {
+    success: false,
+    message: "Too many code execution requests. Please try again later.",
+  },
+});
+
 
 const router = express.Router();
 
@@ -13,7 +27,7 @@ router.get("/test", (req, res) => {
 });
 
 // Actual code execution route
-router.post("/run", async (req, res) => {
+router.post("/run", compilerLimiter, async (req, res) => {
   try {
     const { language, code, input = "" } = req.body;
 
