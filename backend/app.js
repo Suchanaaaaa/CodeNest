@@ -31,6 +31,14 @@ app.get("/api/health", (req, res) => {
 // Compiler Routes
 app.use("/api/compiler", compilerRoutes);
 
+// 404 Not Found Handler
+app.use((req, res, next) => {
+  const error = new Error(`Route not found: ${req.originalUrl}`);
+  error.statusCode = 404;
+
+  next(error);
+});
+
 // Global Error Handler
 app.use(errorMiddleware);
 
