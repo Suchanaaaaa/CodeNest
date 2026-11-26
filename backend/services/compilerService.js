@@ -6,7 +6,7 @@ import path from "path";
 import crypto from "crypto";
 
 const IMAGE_NAME = "codenest-compiler";
-const TIMEOUT = 5000;
+const TIMEOUT = 15000;
 
 const LANGUAGE_CONFIG = {
   c: {
@@ -234,11 +234,23 @@ export async function executeCode({
       child.stdin.end(input);
     });
 
-    return {
-      success: execution.exitCode === 0,
-      output: execution.stdout,
-      error: execution.stderr,
-    };
+  
+const runtimeError =
+  execution.stderr?.trim() ||
+  (execution.exitCode !== 0
+    ? `Runtime Error: Program exited with code ${execution.exitCode}.`
+    : "");
+
+return {
+  success: execution.exitCode === 0,
+  output: execution.stdout,
+  error: runtimeError,
+  message:
+    execution.exitCode === 0
+      ? "Program executed successfully."
+      : runtimeError,
+};
+
 
   } finally {
     // Remove temporary workspace
