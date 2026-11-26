@@ -17,13 +17,50 @@ router.post("/run", async (req, res) => {
   try {
     const { language, code, input = "" } = req.body;
 
-    if (!language || !code) {
+    // Check required fields
+    if (!language || code === undefined || code === null || code === "") {
       return res.status(400).json({
         success: false,
         message: "Language and code are required.",
       });
     }
 
+    // Check supported language
+    if (!["c", "cpp", "java"].includes(language)) {
+      return res.status(400).json({
+        success: false,
+        message: "Unsupported programming language.",
+      });
+    }
+
+    // Check source code type and empty content
+    if (typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Source code cannot be empty.",
+      });
+    }
+
+    // Check source code size
+    if (Buffer.byteLength(code, "utf8") > 50000) {
+      return res.status(400).json({
+        success: false,
+        message: "Source code is too large.",
+      });
+    }
+
+    // Check program input
+    if (
+      typeof input !== "string" ||
+      Buffer.byteLength(input, "utf8") > 10000
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Program input is too large.",
+      });
+    }
+
+    // Execute code
     const result = await executeCode({
       language,
       code,
