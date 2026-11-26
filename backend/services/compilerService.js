@@ -6,7 +6,10 @@ import path from "path";
 import crypto from "crypto";
 
 const IMAGE_NAME = "codenest-compiler";
-const TIMEOUT = 15000;
+
+const COMPILE_TIMEOUT = 15000;
+const EXECUTION_TIMEOUT = 5000;
+const MAX_OUTPUT_SIZE = 100000;
 
 const LANGUAGE_CONFIG = {
   c: {
@@ -26,8 +29,29 @@ const LANGUAGE_CONFIG = {
   },
 };
 
-// Run Docker process
-function runProcess(command, args, options = {}) {
+// Stop Docker container safely
+function stopContainer(containerName) {
+  return new Promise((resolve) => {
+    if (!containerName) {
+      return resolve();
+    }
+
+    const child = spawn(
+      "docker",
+      ["stop", "--time", "1", containerName],
+      {
+        windowsHide: true,
+        stdio: "ignore",
+      }
+    );
+
+    child.on("close", resolve);
+    child.on("error", resolve);
+  });
+}
+
+// Run compilation process
+function runProcess(command, args, options = {}, containerName = null) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       ...options,
@@ -39,45 +63,60 @@ function runProcess(command, args, options = {}) {
     let stderr = "";
     let settled = false;
 
-    const timer = setTimeout(() => {
+    const terminate = async (message) => {
+      if (settled) return;
+
+      settled = true;
+      clearTimeout(timer);
+
+      await stopContainer(containerName);
       child.kill("SIGKILL");
 
-      if (!settled) {
-        settled = true;
-        reject(new Error("Process timed out."));
-      }
-    }, TIMEOUT);
+      reject(new Error(message));
+    };
+
+    const timer = setTimeout(() => {
+      terminate("Compilation time limit exceeded.");
+    }, COMPILE_TIMEOUT);
 
     child.stdout.on("data", (data) => {
-      stdout += data.toString();
+      if (settled) return;
 
-      if (stdout.length > 100000) {
-        child.kill("SIGKILL");
+      const chunk = data.toString();
+
+      if (stdout.length + chunk.length > MAX_OUTPUT_SIZE) {
+        terminate("Compilation output limit exceeded.");
+        return;
       }
+
+      stdout += chunk;
     });
 
     child.stderr.on("data", (data) => {
-      stderr += data.toString();
+      if (settled) return;
 
-      if (stderr.length > 100000) {
-        child.kill("SIGKILL");
+      const chunk = data.toString();
+
+      if (stderr.length + chunk.length > MAX_OUTPUT_SIZE) {
+        terminate("Compilation output limit exceeded.");
+        return;
       }
+
+      stderr += chunk;
     });
 
     child.on("error", (error) => {
-      clearTimeout(timer);
-
       if (!settled) {
         settled = true;
+        clearTimeout(timer);
         reject(error);
       }
     });
 
     child.on("close", (code) => {
-      clearTimeout(timer);
-
       if (!settled) {
         settled = true;
+        clearTimeout(timer);
         resolve({ code, stdout, stderr });
       }
     });
@@ -116,6 +155,8 @@ export async function executeCode({
     `codenest-${crypto.randomUUID()}`
   );
 
+  const containerName = `codenest-${crypto.randomUUID()}`;
+
   try {
     // Create temporary workspace
     await fs.mkdir(workspace, { mode: 0o700 });
@@ -133,6 +174,7 @@ export async function executeCode({
     // Docker security and resource limits
     const dockerLimits = [
       "run",
+      "--name", containerName,
       "--rm",
       "--network", "none",
       "--memory", "256m",
@@ -153,7 +195,9 @@ export async function executeCode({
     // Step 1: Compile source code
     const compile = await runProcess(
       "docker",
-      [...dockerLimits, ...config.compile]
+      [...dockerLimits, ...config.compile],
+      {},
+      containerName
     );
 
     if (compile.code !== 0) {
@@ -167,7 +211,6 @@ export async function executeCode({
     }
 
     // Step 2: Execute compiled program
-    // -i keeps Docker stdin open for user input
     const executionArgs = [
       ...dockerLimits.slice(0, 1),
       "-i",
@@ -188,40 +231,68 @@ export async function executeCode({
       let stdout = "";
       let stderr = "";
       let settled = false;
+      let outputLimitExceeded = false;
 
-      const timer = setTimeout(() => {
+      const terminate = async (message) => {
+        if (settled) return;
+
+        settled = true;
+        clearTimeout(timer);
+
+        await stopContainer(containerName);
         child.kill("SIGKILL");
 
-        if (!settled) {
-          settled = true;
-          reject(
-            new Error("Execution time limit exceeded.")
-          );
-        }
-      }, TIMEOUT);
+        reject(new Error(message));
+      };
 
+      // Execution timeout
+      const timer = setTimeout(() => {
+        terminate("Execution time limit exceeded.");
+      }, EXECUTION_TIMEOUT);
+
+      // Capture standard output
       child.stdout.on("data", (data) => {
-        stdout += data.toString();
+        if (settled || outputLimitExceeded) return;
+
+        const chunk = data.toString();
+
+        if (stdout.length + chunk.length > MAX_OUTPUT_SIZE) {
+          outputLimitExceeded = true;
+          terminate("Program output limit exceeded.");
+          return;
+        }
+
+        stdout += chunk;
       });
 
+      // Capture standard error
       child.stderr.on("data", (data) => {
-        stderr += data.toString();
+        if (settled || outputLimitExceeded) return;
+
+        const chunk = data.toString();
+
+        if (stderr.length + chunk.length > MAX_OUTPUT_SIZE) {
+          outputLimitExceeded = true;
+          terminate("Program output limit exceeded.");
+          return;
+        }
+
+        stderr += chunk;
       });
 
       child.on("error", (error) => {
-        clearTimeout(timer);
-
         if (!settled) {
           settled = true;
+          clearTimeout(timer);
           reject(error);
         }
       });
 
       child.on("close", (exitCode) => {
-        clearTimeout(timer);
-
         if (!settled) {
           settled = true;
+          clearTimeout(timer);
+
           resolve({
             exitCode,
             stdout,
@@ -234,23 +305,22 @@ export async function executeCode({
       child.stdin.end(input);
     });
 
-  
-const runtimeError =
-  execution.stderr?.trim() ||
-  (execution.exitCode !== 0
-    ? `Runtime Error: Program exited with code ${execution.exitCode}.`
-    : "");
+    // Runtime error handling
+    const runtimeError =
+      execution.stderr?.trim() ||
+      (execution.exitCode !== 0
+        ? `Runtime Error: Program exited with code ${execution.exitCode}.`
+        : "");
 
-return {
-  success: execution.exitCode === 0,
-  output: execution.stdout,
-  error: runtimeError,
-  message:
-    execution.exitCode === 0
-      ? "Program executed successfully."
-      : runtimeError,
-};
-
+    return {
+      success: execution.exitCode === 0,
+      output: execution.stdout,
+      error: runtimeError,
+      message:
+        execution.exitCode === 0
+          ? "Program executed successfully."
+          : runtimeError,
+    };
 
   } finally {
     // Remove temporary workspace
