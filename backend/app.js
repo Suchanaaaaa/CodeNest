@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import compilerRoutes from "./routes/compilerRoutes.js";
+import errorMiddleware from "./middleware/errorMiddleware.js";
 
 const app = express();
 
@@ -29,5 +30,8 @@ app.get("/api/health", (req, res) => {
 
 // Compiler Routes
 app.use("/api/compiler", compilerRoutes);
+
+// Global Error Handler
+app.use(errorMiddleware);
 
 export default app;
