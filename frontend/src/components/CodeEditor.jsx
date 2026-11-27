@@ -1,17 +1,17 @@
-
 import Editor from "@monaco-editor/react";
 
 export default function CodeEditor({
   language,
   code,
   setCode,
+  theme = "dark",
 }) {
   return (
     <div className="editor-container">
       <Editor
         height="100%"
         language={language}
-        theme="vs-dark"
+        theme={theme === "dark" ? "vs-dark" : "light"}
         value={code}
         onChange={(value) => setCode(value || "")}
         options={{

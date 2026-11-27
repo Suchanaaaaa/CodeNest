@@ -32,6 +32,16 @@ const statusLabels = {
   error: "✕ Error",
 };
 
+// Saved theme পড়া (না থাকলে dark)
+const getInitialTheme = () => {
+  try {
+    const saved = localStorage.getItem("codenest-theme");
+    return saved === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+};
+
 export default function App() {
   const [language, setLanguage] = useState("cpp");
   const [code, setCode] = useState(templates.cpp);
@@ -43,6 +53,21 @@ export default function App() {
   const [runTime, setRunTime] = useState(null); // milliseconds
   const [backendStatus, setBackendStatus] = useState("Connecting...");
   const [isRunning, setIsRunning] = useState(false);
+  const [theme, setTheme] = useState(getInitialTheme); // dark | light
+
+  // Theme বদলালে <html> এ বসানো আর save করা
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem("codenest-theme", theme);
+    } catch {
+      // storage না চললে সমস্যা নেই
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((current) => (current === "dark" ? "light" : "dark"));
+  };
 
   // Backend health check
   useEffect(() => {
@@ -131,6 +156,15 @@ export default function App() {
         </div>
 
         <div className="header-right">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            title="Switch theme"
+          >
+            {theme === "dark" ? "☀ Light" : "🌙 Dark"}
+          </button>
+
           <span className="connection">
             <span
               className={`dot ${
@@ -163,6 +197,7 @@ export default function App() {
                 language={language}
                 code={code}
                 setCode={setCode}
+                theme={theme}
               />
             </div>
           </div>
