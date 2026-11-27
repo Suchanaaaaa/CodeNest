@@ -26,6 +26,12 @@ int main() {
 }`,
 };
 
+const statusLabels = {
+  running: "Running...",
+  success: "✓ Success",
+  error: "✕ Error",
+};
+
 export default function App() {
   const [language, setLanguage] = useState("cpp");
   const [code, setCode] = useState(templates.cpp);
@@ -33,6 +39,8 @@ export default function App() {
   const [output, setOutput] = useState(
     "Your output will appear here after compilation."
   );
+  const [status, setStatus] = useState("idle"); // idle | running | success | error
+  const [runTime, setRunTime] = useState(null); // milliseconds
   const [backendStatus, setBackendStatus] = useState("Connecting...");
   const [isRunning, setIsRunning] = useState(false);
 
@@ -54,17 +62,25 @@ export default function App() {
     setLanguage(newLanguage);
     setCode(templates[newLanguage]);
     setOutput("Language changed. Ready to compile.");
+    setStatus("idle");
+    setRunTime(null);
   };
 
   // Actual code execution
   const handleRun = async () => {
     if (!code.trim()) {
       setOutput("Please write some code first.");
+      setStatus("error");
+      setRunTime(null);
       return;
     }
 
     setIsRunning(true);
+    setStatus("running");
+    setRunTime(null);
     setOutput("Compiling and executing your code...");
+
+    const startTime = performance.now();
 
     try {
       const response = await axios.post(`${API}/api/compiler/run`, {
@@ -76,10 +92,12 @@ export default function App() {
       const result = response.data;
 
       if (result.success) {
+        setStatus("success");
         setOutput(
           result.output || "Program executed successfully. No output."
         );
       } else {
+        setStatus("error");
         setOutput(
           result.output ||
             result.error ||
@@ -90,12 +108,14 @@ export default function App() {
     } catch (error) {
       console.error("Code execution error:", error);
 
+      setStatus("error");
       setOutput(
         error.response?.data?.message ||
           error.message ||
           "Unable to execute code."
       );
     } finally {
+      setRunTime(Math.round(performance.now() - startTime));
       setIsRunning(false);
     }
   };
@@ -182,9 +202,20 @@ export default function App() {
               <div className="panel-heading">
                 <span>OUTPUT</span>
                 <span className="panel-muted">Program execution result</span>
+
+                {status !== "idle" && (
+                  <div className="output-meta">
+                    <span className={`status-badge ${status}`}>
+                      {statusLabels[status]}
+                    </span>
+                    {runTime !== null && status !== "running" && (
+                      <span className="run-time">{runTime} ms</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="output-area">
-                <pre className="output-placeholder">{output}</pre>
+                <pre className={`output-placeholder ${status}`}>{output}</pre>
               </div>
             </div>
           </div>
