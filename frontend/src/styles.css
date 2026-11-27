@@ -224,6 +224,16 @@ body {
   font-size: 13px;
 }
 
+.input-hint {
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding: 10px 12px;
+  color: #94a3b8;
+  font-size: 13px;
+  background: #0f1a2e;
+  border-radius: 7px;
+}
+
 .output-area {
   flex: 1;
   min-height: 0;

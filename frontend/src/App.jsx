@@ -171,6 +171,11 @@ export default function App() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
               />
+
+              <div className="input-hint">
+                If your code takes input, add it in the above box before
+                running.
+              </div>
             </div>
 
             <div className="io-block output-block">
